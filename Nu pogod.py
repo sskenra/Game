@@ -1,108 +1,175 @@
 import tkinter as tk
 import random
+import os
+import shutil
+import threading
+from PIL import Image, ImageTk
+from playsound import playsound
 
-# Настройки окна
-window_width = 800
-window_height = 500
-
-# Настройки объектов
-plate_width = 150
-plate_height = 30
-object_size = 50
-plate_speed = 50
-
-# Счёт и жизни
-score = 0
-lives = 3
-game_running = True
-falling_objects = []
-
-# Создаём окно
 root = tk.Tk()
-root.title("Простая игра")
-canvas = tk.Canvas(root, width=window_width, height=window_height, bg="lightblue")
+root.title("Поймай яблоко!")
+root.geometry("800x600")
+root.resizable(False, False)
+
+DIR = os.path.dirname(os.path.abspath(__file__))
+IMG = os.path.join(DIR, "Images")
+SND = os.path.join(DIR, "Sounds")
+TMP = os.path.join("C:\\TempGameAssets")
+os.makedirs(TMP, exist_ok=True)
+
+SAFE_MUSIC_PATH = os.path.join(TMP, "music.wav")
+SOURCE_MUSIC_PATH = os.path.join(SND, "Pixelated Dreams.wav")
+
+if not os.path.exists(SAFE_MUSIC_PATH):
+    try:
+        shutil.copy2(SOURCE_MUSIC_PATH, SAFE_MUSIC_PATH)
+    except Exception as e:
+        print("Ошибка копирования музыки:", e)
+
+def img(name, w, h):
+    return ImageTk.PhotoImage(Image.open(os.path.join(IMG, name)).resize((w, h)))
+
+bg = img("background.png", 800, 600)
+btn_start = img("Start1.png", 300, 120)
+btn_exit = img("Exit1.png", 300, 120)
+apple_img = img("apple.png", 50, 50)
+burger_img = img("Burger2.png", 120, 80)
+plate_img = img("Tarelka.png", 150, 50)
+
+canvas = tk.Canvas(root, width=800, height=600, highlightthickness=0)
 canvas.pack()
 
-# Тарелка
-plate = canvas.create_rectangle(
-    window_width // 2 - plate_width // 2,
-    window_height - plate_height - 10,
-    window_width // 2 + plate_width // 2,
-    window_height - 10,
-    fill="white"
-)
+score = 0
+lives = 3
+running = False
+paused = False
+objs = []
+game_running = True
+music_thread = None
 
-# Движение тарелки
-def move_plate(event):
-    if not game_running:
+def play_music_loop():
+    while game_running:
+        try:
+            playsound(SAFE_MUSIC_PATH)
+        except:
+            break
+
+def start_music():
+    global music_thread
+    if music_thread and music_thread.is_alive():
         return
-    if event.keysym == "Left":
-        canvas.move(plate, -plate_speed, 0)
-    elif event.keysym == "Right":
-        canvas.move(plate, plate_speed, 0)
+    music_thread = threading.Thread(target=play_music_loop, daemon=True)
+    music_thread.start()
 
-# Создание объектов
-def spawn_object():
-    if not game_running:
-        return
-    x = random.randint(0, window_width - object_size)
-    object_type = random.choice(["good", "bad"])
-    color = "blue" if object_type == "good" else "red"
-    obj = canvas.create_rectangle(x, 0, x + object_size, object_size, fill=color)
-    falling_objects.append({"id": obj, "type": object_type, "y": 0})
-    root.after(1000, spawn_object)
+def stop_music():
+    global game_running
+    game_running = False
 
-# Проверка столкновений и обновление игры
-def update_game():
-    global score, lives, game_running
+def main_menu():
+    canvas.delete("all")
+    root.config(cursor="")
+    canvas.create_image(0, 0, image=bg, anchor="nw")
+    canvas.create_text(400, 150, text="Поймай яблоко!", font=("Arial", 48), fill="white")
+    s = canvas.create_image(400, 300, image=btn_start)
+    e = canvas.create_image(400, 450, image=btn_exit)
+    canvas.tag_bind(s, "<Button-1>", lambda e: start_game())
+    canvas.tag_bind(e, "<Button-1>", lambda e: (stop_music(), root.quit()))
 
-    if not game_running:
-        return
+def start_countdown(callback=None):
+    countdown_label = canvas.create_text(400, 300, text="3", font=("Arial", 48), fill="black", 
+    tag="countdown")
+    def countdown(n):
+        if n > 0:
+            canvas.itemconfig(countdown_label, text=str(n))
+            root.after(1000, countdown, n - 1)
+        else:
+            canvas.delete("countdown")
+            if callback:
+                callback()
+    countdown(3)
 
-    for obj in falling_objects[:]:
-        canvas.move(obj["id"], 0, 5)
-        obj["y"] += 5
+def start_game():
+    global score, lives, running, paused, objs, game_running
+    canvas.delete("all")
+    root.config(cursor="none")
+    canvas.create_image(0, 0, image=bg, anchor="nw")
+    canvas.create_text(70, 30, text="Очки: 0", font=("Arial", 18), fill="black", tag="score")
+    canvas.create_text(730, 30, text="Жизни: 3", font=("Arial", 18), fill="black", tag="lives")
+    canvas.create_image(400, 550, image=plate_img, tag="plate")
+    objs.clear()
+    score = 0
+    lives = 3
+    running = True
+    paused = False
+    game_running = True
+    start_music()
+    start_countdown(lambda: (update(), spawn()))
 
-        obj_coords = canvas.coords(obj["id"])
-        plate_coords = canvas.coords(plate)
-
-        # Столкновение
-        if (plate_coords[0] < obj_coords[2] and plate_coords[2] > obj_coords[0] and
-            plate_coords[1] < obj_coords[3] and plate_coords[3] > obj_coords[1]):
-            if obj["type"] == "good":
-                score += 1
-            else:
-                lives -= 1
-            canvas.delete(obj["id"])
-            falling_objects.remove(obj)
-
-        # Упал вниз
-        elif obj["y"] > window_height:
-            if obj["type"] == "good":
-                lives -= 1
-            canvas.delete(obj["id"])
-            falling_objects.remove(obj)
-
-    if lives <= 0:
-        game_running = False
+def update():
+    if not running or paused: return
+    speed = 5 + score // 1
+    for o in objs[:]:
+        canvas.move(o["id"], 0, speed)
+        o["y"] += speed
+        ox, oy = canvas.coords(o["id"])
+        px, py = canvas.coords("plate")
+        if abs(ox - px) < 75 and abs(oy - py) < 30:
+            add_score(o)
+        elif o["y"] > 600:
+            if o["type"] == "apple":
+                lose_life()
+            canvas.delete(o["id"])
+            objs.remove(o)
+    canvas.itemconfig("score", text=f"Очки: {score}")
+    canvas.itemconfig("lives", text=f"Жизни: {lives}")
+    if lives > 0:
+        root.after(50, update)
     else:
-        root.after(50, update_game)
+        game_over()
 
-# Отображение счёта и жизней
-def draw_score():
-    canvas.delete("score")
-    canvas.create_text(10, 10, anchor="nw", text="Счёт: " + str(score), font=("Arial", 14), tags="score")
-    canvas.create_text(10, 30, anchor="nw", text="Жизни: " + str(lives), font=("Arial", 14), tags="score")
-    if game_running:
-        root.after(100, draw_score)
+def spawn():
+    if not running or paused: return
+    x = random.randint(25, 775)
+    kind = random.choice(["apple", "burger"])
+    img = apple_img if kind == "apple" else burger_img
+    obj = canvas.create_image(x, 0, image=img)
+    objs.append({"id": obj, "type": kind, "y": 0})
+    root.after(800, spawn)
 
-# Управление
-root.bind("<Left>", move_plate)
-root.bind("<Right>", move_plate)
+def add_score(obj):
+    global score, lives
+    if obj["type"] == "apple":
+        score += 1
+    else:
+        lives -= 1
+    canvas.delete(obj["id"])
+    objs.remove(obj)
 
-# Запуск игры
-spawn_object()
-update_game()
-draw_score()
+def lose_life():
+    global lives
+    lives -= 1
 
+def game_over():
+    global running
+    running = False
+    canvas.create_text(400, 300, text="Игра окончена", font=("Arial", 36), fill="black")
+
+def move_plate(e):
+    if running and not paused:
+        canvas.coords("plate", e.x, 550)
+
+def toggle_pause(e=None):
+    global paused
+    if running:
+        paused = not paused
+        if not paused:
+            update()
+            spawn()
+
+root.bind("<Motion>", move_plate)
+root.bind("r", lambda e: start_game())
+root.bind("<Alt_L>", toggle_pause)
+root.bind_all("<Alt_L>", lambda e: "break")
+
+main_menu()
 root.mainloop()
