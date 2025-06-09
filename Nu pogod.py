@@ -7,7 +7,7 @@ from PIL import Image, ImageTk
 from playsound import playsound
 
 root = tk.Tk()
-root.title("Поймай яблоко!")
+root.title("Ну, погоди!")
 root.geometry("800x600")
 root.resizable(False, False)
 
@@ -69,8 +69,8 @@ def main_menu():
     canvas.delete("all")
     root.config(cursor="")
     canvas.create_image(0, 0, image=bg, anchor="nw")
-    canvas.create_text(400, 150, text="Поймай яблоко!", font=("Arial", 48), fill="white")
-    s = canvas.create_image(400, 300, image=btn_start)
+    canvas.create_text(400, 200, text="Ну, погоди!", font=("Arial", 48), fill="black")
+    s = canvas.create_image(400, 370, image=btn_start)
     e = canvas.create_image(400, 450, image=btn_exit)
     canvas.tag_bind(s, "<Button-1>", lambda e: start_game())
     canvas.tag_bind(e, "<Button-1>", lambda e: (stop_music(), root.quit()))
@@ -152,7 +152,7 @@ def lose_life():
 def game_over():
     global running
     running = False
-    canvas.create_text(400, 300, text="Игра окончена", font=("Arial", 36), fill="black")
+    canvas.create_text(400, 200, text="Игра окончена", font=("Arial", 36), fill="black")
 
 def move_plate(e):
     if running and not paused:
