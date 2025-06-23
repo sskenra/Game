@@ -6,29 +6,35 @@ import threading
 from PIL import Image, ImageTk
 from playsound import playsound
 
+# Создание основного окна
 root = tk.Tk()
 root.title("Ну, погоди!")
 root.geometry("800x600")
 root.resizable(False, False)
 
+# Пути к папкам с ресурсами
 DIR = os.path.dirname(os.path.abspath(__file__))
 IMG = os.path.join(DIR, "Images")
 SND = os.path.join(DIR, "Sounds")
 TMP = os.path.join("C:\\TempGameAssets")
 os.makedirs(TMP, exist_ok=True)
 
+# Подготовка безопасного пути к музыке
 SAFE_MUSIC_PATH = os.path.join(TMP, "music.wav")
 SOURCE_MUSIC_PATH = os.path.join(SND, "Pixelated Dreams.wav")
 
+# Копирование музыки в безопасное место (если нужно)
 if not os.path.exists(SAFE_MUSIC_PATH):
     try:
         shutil.copy2(SOURCE_MUSIC_PATH, SAFE_MUSIC_PATH)
     except Exception as e:
         print("Ошибка копирования музыки:", e)
 
+# Загружает и масштабирует изображение
 def img(name, w, h):
     return ImageTk.PhotoImage(Image.open(os.path.join(IMG, name)).resize((w, h)))
 
+# Загрузка изображений
 bg = img("background.png", 800, 600)
 btn_start = img("Start1.png", 300, 120)
 btn_exit = img("Exit1.png", 300, 120)
@@ -36,9 +42,11 @@ apple_img = img("apple.png", 50, 50)
 burger_img = img("Burger2.png", 120, 80)
 plate_img = img("Tarelka.png", 150, 50)
 
+# Создание холста
 canvas = tk.Canvas(root, width=800, height=600, highlightthickness=0)
 canvas.pack()
 
+# Глобальные переменные
 score = 0
 lives = 3
 running = False
@@ -47,6 +55,7 @@ objs = []
 game_running = True
 music_thread = None
 
+# Воспроизводит музыку в цикле, пока игра активна
 def play_music_loop():
     while game_running:
         try:
@@ -54,6 +63,7 @@ def play_music_loop():
         except:
             break
 
+# Запускает фоновый поток с музыкой
 def start_music():
     global music_thread
     if music_thread and music_thread.is_alive():
@@ -61,10 +71,12 @@ def start_music():
     music_thread = threading.Thread(target=play_music_loop, daemon=True)
     music_thread.start()
 
+# Останавливает воспроизведение музыки
 def stop_music():
     global game_running
     game_running = False
 
+# Отображает главное меню с кнопками "Старт" и "Выход"
 def main_menu():
     canvas.delete("all")
     root.config(cursor="")
@@ -75,6 +87,7 @@ def main_menu():
     canvas.tag_bind(s, "<Button-1>", lambda e: start_game())
     canvas.tag_bind(e, "<Button-1>", lambda e: (stop_music(), root.quit()))
 
+# Запускает обратный отсчет перед началом игры
 def start_countdown(callback=None):
     countdown_label = canvas.create_text(400, 300, text="3", font=("Arial", 48), fill="black", 
     tag="countdown")
@@ -88,6 +101,7 @@ def start_countdown(callback=None):
                 callback()
     countdown(3)
 
+# Подготавливает и запускает игровую сессию
 def start_game():
     global score, lives, running, paused, objs, game_running
     canvas.delete("all")
@@ -105,6 +119,7 @@ def start_game():
     start_music()
     start_countdown(lambda: (update(), spawn()))
 
+# Основной игровой цикл: движение объектов, проверка столкновений, обновление счета
 def update():
     if not running or paused: return
     speed = 5 + score // 1
@@ -127,6 +142,7 @@ def update():
     else:
         game_over()
 
+# Появление нового объекта (яблоко или бургер) на экране
 def spawn():
     if not running or paused: return
     x = random.randint(25, 775)
@@ -136,6 +152,7 @@ def spawn():
     objs.append({"id": obj, "type": kind, "y": 0})
     root.after(800, spawn)
 
+# Обрабатывает пойманный объект: добавляет очко или отнимает жизнь
 def add_score(obj):
     global score, lives
     if obj["type"] == "apple":
@@ -145,19 +162,23 @@ def add_score(obj):
     canvas.delete(obj["id"])
     objs.remove(obj)
 
+# Отнимает одну жизнь при пропущенном яблоке
 def lose_life():
     global lives
     lives -= 1
 
+# Завершает игру и отображает сообщение "Игра окончена"
 def game_over():
     global running
     running = False
     canvas.create_text(400, 200, text="Игра окончена", font=("Arial", 36), fill="black")
 
+# Перемещает тарелку влево/вправо по движению мыши
 def move_plate(e):
     if running and not paused:
         canvas.coords("plate", e.x, 550)
 
+# Включает/выключает паузу по нажатию Alt
 def toggle_pause(e=None):
     global paused
     if running:
@@ -166,10 +187,12 @@ def toggle_pause(e=None):
             update()
             spawn()
 
+# Привязка событий клавиатуры и мыши
 root.bind("<Motion>", move_plate)
 root.bind("r", lambda e: start_game())
 root.bind("<Alt_L>", toggle_pause)
 root.bind_all("<Alt_L>", lambda e: "break")
 
+# Запуск главного меню и основной петли интерфейса
 main_menu()
 root.mainloop()
